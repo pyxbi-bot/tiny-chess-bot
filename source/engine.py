@@ -299,8 +299,8 @@ def choose_move(fen, legal_moves):
     alpha = -999999
     beta = 999999
 
-    # Search depth 2 (evaluates root move + opponent reply + board evaluation)
-    SEARCH_DEPTH = 2
+    # Search depth 3
+    SEARCH_DEPTH = 3
 
     for m in sorted_moves:
         dst = m[2:4]
