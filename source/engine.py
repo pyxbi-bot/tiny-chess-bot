@@ -8,7 +8,7 @@ ENV_URL = os.environ.get("MAKEFUN_ENV_URL") or sys.exit("MAKEFUN_ENV_URL is not 
 
 PIECE_VAL = {"P": 100, "N": 320, "B": 330, "R": 500, "Q": 900, "K": 20000}
 
-# Piece-Square Tables (from White's rank 8 down to rank 1, square 0 = a8, 63 = h1)
+# Piece-Square Tables (White's perspective, rank 8 down to rank 1)
 PST = {
     "P": (
         0,  0,  0,  0,  0,  0,  0,  0,
@@ -226,26 +226,31 @@ def order_moves(moves, board):
     return sorted(moves, key=score_move, reverse=True)
 
 def alpha_beta(board, depth, alpha, beta, white_to_move):
+    moves = get_pseudo_moves(board, white_to_move)
+    if not moves:
+        return 0
+
+    # Immediate King capture check
+    for m in moves:
+        if board.get(m[2:4], '').upper() == 'K':
+            return 20000 + depth
+
     if depth <= 0:
         return evaluate_pos(board, white_to_move)
 
-    moves = get_pseudo_moves(board, white_to_move)
-    if not moves:
-        return 0 # Stalemate or mate
-
     moves = order_moves(moves, board)
-    for m in moves:
-        dst = m[2:4]
-        if board.get(dst, '').upper() == 'K':
-            return 15000 + depth # Winning capture of King
+    best_val = -999999
 
+    for m in moves:
         nb = apply_move(board, m)
         val = -alpha_beta(nb, depth - 1, -beta, -alpha, not white_to_move)
-        if val >= beta:
-            return beta
+        if val > best_val:
+            best_val = val
         if val > alpha:
             alpha = val
-    return alpha
+        if alpha >= beta:
+            break
+    return best_val
 
 def choose_move(fen, legal_moves):
     if not legal_moves:
@@ -261,7 +266,7 @@ def choose_move(fen, legal_moves):
     alpha = -999999
     beta = 999999
 
-    # Search depth 2 (effective 3-ply outlook)
+    # Search depth 2 (evaluates root move + opponent reply + board evaluation)
     SEARCH_DEPTH = 2
 
     for m in sorted_moves:
