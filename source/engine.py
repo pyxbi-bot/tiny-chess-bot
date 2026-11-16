@@ -225,6 +225,39 @@ def order_moves(moves, board):
         return 0
     return sorted(moves, key=score_move, reverse=True)
 
+def quiesce(board, alpha, beta, white_to_move, qdepth=0):
+    stand_pat = evaluate_pos(board, white_to_move)
+    if stand_pat >= beta:
+        return beta
+    if alpha < stand_pat:
+        alpha = stand_pat
+    if qdepth >= 4:
+        return alpha
+
+    captures = []
+    for m in get_pseudo_moves(board, white_to_move):
+        dst = m[2:4]
+        target = board.get(dst)
+        if target:
+            if target.upper() == 'K':
+                return 20000
+            captures.append(m)
+        elif len(m) == 5:
+            captures.append(m)
+
+    if not captures:
+        return stand_pat
+
+    captures = order_moves(captures, board)
+    for m in captures:
+        nb = apply_move(board, m)
+        score = -quiesce(nb, -beta, -alpha, not white_to_move, qdepth + 1)
+        if score >= beta:
+            return beta
+        if score > alpha:
+            alpha = score
+    return alpha
+
 def alpha_beta(board, depth, alpha, beta, white_to_move):
     moves = get_pseudo_moves(board, white_to_move)
     if not moves:
@@ -236,7 +269,7 @@ def alpha_beta(board, depth, alpha, beta, white_to_move):
             return 20000 + depth
 
     if depth <= 0:
-        return evaluate_pos(board, white_to_move)
+        return quiesce(board, alpha, beta, white_to_move)
 
     moves = order_moves(moves, board)
     best_val = -999999
