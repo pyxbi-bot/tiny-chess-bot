@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-import time
 import urllib.request
 import urllib.error
 
@@ -226,63 +225,37 @@ def order_moves(moves, board):
         return 0
     return sorted(moves, key=score_move, reverse=True)
 
-def is_in_check(board, white_to_move):
-    target_k = 'K' if white_to_move else 'k'
-    ksq = None
-    for sq, p in board.items():
-        if p == target_k:
-            ksq = sq
-            break
-    if not ksq:
-        return True
-    for m in get_pseudo_moves(board, not white_to_move):
-        if m[2:4] == ksq:
-            return True
-    return False
-
 def quiesce(board, alpha, beta, white_to_move, qdepth=0):
-    in_check = is_in_check(board, white_to_move)
-    if not in_check:
-        stand_pat = evaluate_pos(board, white_to_move)
-        if stand_pat >= beta:
-            return beta
-        if alpha < stand_pat:
-            alpha = stand_pat
-    else:
-        stand_pat = -20000
-
+    stand_pat = evaluate_pos(board, white_to_move)
+    if stand_pat >= beta:
+        return beta
+    if alpha < stand_pat:
+        alpha = stand_pat
     if qdepth >= 4:
         return alpha
 
     captures = []
-    moves = get_pseudo_moves(board, white_to_move)
-    for m in moves:
+    for m in get_pseudo_moves(board, white_to_move):
         dst = m[2:4]
         target = board.get(dst)
-        if in_check or target or len(m) == 5:
-            if target and target.upper() == 'K':
+        if target:
+            if target.upper() == 'K':
                 return 20000
+            captures.append(m)
+        elif len(m) == 5:
             captures.append(m)
 
     if not captures:
-        return -20000 if in_check else stand_pat
+        return stand_pat
 
     captures = order_moves(captures, board)
-    legal_moves = 0
     for m in captures:
         nb = apply_move(board, m)
-        if is_in_check(nb, white_to_move):
-            continue
-        legal_moves += 1
         score = -quiesce(nb, -beta, -alpha, not white_to_move, qdepth + 1)
         if score >= beta:
             return beta
         if score > alpha:
             alpha = score
-
-    if in_check and legal_moves == 0:
-        return -20000
-
     return alpha
 
 def alpha_beta(board, depth, alpha, beta, white_to_move):
@@ -326,6 +299,7 @@ def choose_move(fen, legal_moves):
     alpha = -999999
     beta = 999999
 
+    # Search depth 2 (evaluates root move + opponent reply + board evaluation)
     SEARCH_DEPTH = 2
 
     for m in sorted_moves:
