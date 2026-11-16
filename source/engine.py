@@ -8,41 +8,41 @@ ENV_URL = os.environ.get("MAKEFUN_ENV_URL") or sys.exit("MAKEFUN_ENV_URL is not 
 
 PIECE_VAL = {"P": 100, "N": 320, "B": 330, "R": 500, "Q": 900, "K": 20000}
 
-# Piece-Square Tables (8x8 from rank 8 to rank 1)
+# Piece-Square Tables (from White's rank 8 down to rank 1, square 0 = a8, 63 = h1)
 PST = {
     "P": (
         0,  0,  0,  0,  0,  0,  0,  0,
         50, 50, 50, 50, 50, 50, 50, 50,
         10, 10, 20, 30, 30, 20, 10, 10,
-        5,  5, 10, 25, 25, 10,  5,  5,
-        0,  0,  0, 20, 20,  0,  0,  0,
+        5,  5, 10, 27, 27, 10,  5,  5,
+        0,  0,  0, 25, 25,  0,  0,  0,
         5, -5,-10,  0,  0,-10, -5,  5,
-        5, 10, 10,-20,-20, 10, 10,  5,
+        5, 10, 10,-25,-25, 10, 10,  5,
         0,  0,  0,  0,  0,  0,  0,  0
     ),
     "N": (
         -50,-40,-30,-30,-30,-30,-40,-50,
-        -40,-20,  0,  0,  0,  0,-20,-40,
-        -30,  0, 10, 15, 15, 10,  0,-30,
+        -40,-20,  0,  5,  5,  0,-20,-40,
         -30,  5, 15, 20, 20, 15,  5,-30,
-        -30,  0, 15, 20, 20, 15,  0,-30,
-        -30,  5, 10, 15, 15, 10,  5,-30,
+        -30,  5, 20, 25, 25, 20,  5,-30,
+        -30,  0, 20, 25, 25, 20,  0,-30,
+        -30,  5, 15, 20, 20, 15,  5,-30,
         -40,-20,  0,  5,  5,  0,-20,-40,
         -50,-40,-30,-30,-30,-30,-40,-50
     ),
     "B": (
         -20,-10,-10,-10,-10,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5, 10, 10,  5,  0,-10,
-        -10,  5,  5, 10, 10,  5,  5,-10,
-        -10,  0, 10, 10, 10, 10,  0,-10,
-        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -10, 10, 10, 15, 15, 10, 10,-10,
+        -10,  5, 10, 15, 15, 10,  5,-10,
+        -10,  0, 15, 15, 15, 15,  0,-10,
+        -10, 10, 15, 15, 15, 15, 10,-10,
         -10,  5,  0,  0,  0,  0,  5,-10,
         -20,-10,-10,-10,-10,-10,-10,-20
     ),
     "R": (
-        0,  0,  0,  0,  0,  0,  0,  0,
-        5, 10, 10, 10, 10, 10, 10,  5,
+        0,  0,  0,  5,  5,  0,  0,  0,
+        15, 20, 20, 20, 20, 20, 20, 15,
         -5,  0,  0,  0,  0,  0,  0, -5,
         -5,  0,  0,  0,  0,  0,  0, -5,
         -5,  0,  0,  0,  0,  0,  0, -5,
@@ -52,12 +52,12 @@ PST = {
     ),
     "Q": (
         -20,-10,-10, -5, -5,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5,  5,  5,  5,  0,-10,
-        -5,  0,  5,  5,  5,  5,  0, -5,
-        0,  0,  5,  5,  5,  5,  0, -5,
-        -10,  5,  5,  5,  5,  5,  0,-10,
         -10,  0,  5,  0,  0,  0,  0,-10,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+        -5,  0,  5,  5,  5,  5,  0, -5,
+        -5,  0,  5,  5,  5,  5,  0, -5,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+        -10,  0,  0,  0,  0,  0,  0,-10,
         -20,-10,-10, -5, -5,-10,-10,-20
     ),
     "K": (
@@ -98,49 +98,102 @@ def parse_fen(fen):
     return board, white_to_move
 
 def sq_to_idx(sq):
-    col = ord(sq[0]) - ord('a')
-    row = 8 - int(sq[1])
-    return row * 8 + col
+    return (8 - int(sq[1])) * 8 + (ord(sq[0]) - ord('a'))
 
-def evaluate_board(board, white_to_move):
+def evaluate_pos(board, white_to_move):
     score = 0
     for sq, p in board.items():
-        val = PIECE_VAL.get(p.upper(), 0)
+        pt = p.upper()
+        v = PIECE_VAL.get(pt, 0)
         idx = sq_to_idx(sq)
         pst_val = 0
-        if p.upper() in PST:
+        if pt in PST:
             if p.isupper():
-                pst_val = PST[p][idx]
+                pst_val = PST[pt][idx]
             else:
-                # Mirror for black
                 r = idx // 8
                 c = idx % 8
-                mirror_idx = (7 - r) * 8 + c
-                pst_val = PST[p.upper()][mirror_idx]
-        total = val + pst_val
+                pst_val = PST[pt][(7 - r) * 8 + c]
+        tot = v + pst_val
         if p.isupper():
-            score += total
+            score += tot
         else:
-            score -= total
+            score -= tot
     return score if white_to_move else -score
+
+def get_pseudo_moves(board, white_to_move):
+    moves = []
+    for sq, p in board.items():
+        if (p.isupper() == white_to_move):
+            c = ord(sq[0]) - ord('a')
+            r = int(sq[1])
+            pt = p.upper()
+            if pt == 'P':
+                step = 1 if white_to_move else -1
+                nr = r + step
+                if 1 <= nr <= 8:
+                    tsq = chr(ord('a') + c) + str(nr)
+                    if tsq not in board:
+                        if nr in (1, 8):
+                            for promo in ('q', 'r', 'b', 'n'): moves.append(sq + tsq + promo)
+                        else:
+                            moves.append(sq + tsq)
+                            start_rank = 2 if white_to_move else 7
+                            if r == start_rank:
+                                tsq2 = chr(ord('a') + c) + str(r + 2 * step)
+                                if tsq2 not in board:
+                                    moves.append(sq + tsq2)
+                for dc in (-1, 1):
+                    nc = c + dc
+                    nr = r + step
+                    if 0 <= nc <= 7 and 1 <= nr <= 8:
+                        tsq = chr(ord('a') + nc) + str(nr)
+                        target = board.get(tsq)
+                        if target and (target.isupper() != white_to_move):
+                            if nr in (1, 8):
+                                for promo in ('q', 'r', 'b', 'n'): moves.append(sq + tsq + promo)
+                            else:
+                                moves.append(sq + tsq)
+            elif pt in ('N', 'K'):
+                deltas = [(-2,-1),(-2,1),(-1,-2),(-1,2),(1,-2),(1,2),(2,-1),(2,1)] if pt == 'N' else [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+                for dc, dr in deltas:
+                    nc, nr = c + dc, r + dr
+                    if 0 <= nc <= 7 and 1 <= nr <= 8:
+                        tsq = chr(ord('a') + nc) + str(nr)
+                        target = board.get(tsq)
+                        if not target or (target.isupper() != white_to_move):
+                            moves.append(sq + tsq)
+            elif pt in ('B', 'R', 'Q'):
+                dirs = []
+                if pt in ('B', 'Q'): dirs.extend([(-1,-1),(-1,1),(1,-1),(1,1)])
+                if pt in ('R', 'Q'): dirs.extend([(-1,0),(1,0),(0,-1),(0,1)])
+                for dc, dr in dirs:
+                    nc, nr = c + dc, r + dr
+                    while 0 <= nc <= 7 and 1 <= nr <= 8:
+                        tsq = chr(ord('a') + nc) + str(nr)
+                        target = board.get(tsq)
+                        if not target:
+                            moves.append(sq + tsq)
+                        else:
+                            if target.isupper() != white_to_move:
+                                moves.append(sq + tsq)
+                            break
+                        nc += dc
+                        nr += dr
+    return moves
 
 def apply_move(board, move):
     nb = dict(board)
     src = move[:2]
     dst = move[2:4]
-    piece = nb.pop(src, None)
-    if not piece:
+    p = nb.pop(src, None)
+    if not p:
         return nb
-    # Handle promotion
     if len(move) == 5:
-        promo = move[4]
-        piece = promo.upper() if piece.isupper() else promo.lower()
-    # Handle en-passant capture
-    if piece.upper() == 'P' and src[0] != dst[0] and dst not in nb:
-        ep_sq = dst[0] + src[1]
-        nb.pop(ep_sq, None)
-    # Handle castling move of rook
-    if piece.upper() == 'K':
+        p = move[4].upper() if p.isupper() else move[4].lower()
+    if p.upper() == 'P' and src[0] != dst[0] and dst not in nb:
+        nb.pop(dst[0] + src[1], None) # en-passant
+    if p.upper() == 'K': # castling rook movement
         if src == 'e1' and dst == 'g1':
             r = nb.pop('h1', None)
             if r: nb['f1'] = r
@@ -153,75 +206,45 @@ def apply_move(board, move):
         elif src == 'e8' and dst == 'c8':
             r = nb.pop('a8', None)
             if r: nb['d8'] = r
-    nb[dst] = piece
+    nb[dst] = p
     return nb
 
-def generate_pseudo_legal_captures(board, white_to_move):
-    """Find capture moves for quiescence search."""
-    moves = []
-    for sq, p in board.items():
-        if (p.isupper() and white_to_move) or (p.islower() and not white_to_move):
-            c = ord(sq[0]) - ord('a')
-            r = int(sq[1])
-            pt = p.upper()
-            if pt == 'P':
-                dr = 1 if white_to_move else -1
-                for dc in (-1, 1):
-                    nc, nr = c + dc, r + dr
-                    if 0 <= nc <= 7 and 1 <= nr <= 8:
-                        tsq = chr(ord('a') + nc) + str(nr)
-                        target = board.get(tsq)
-                        if target and (target.isupper() != white_to_move):
-                            moves.append(sq + tsq)
-            elif pt in ('N', 'K'):
-                deltas = [(-2,-1),(-2,1),(-1,-2),(-1,2),(1,-2),(1,2),(2,-1),(2,1)] if pt == 'N' else [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
-                for dc, dr in deltas:
-                    nc, nr = c + dc, r + dr
-                    if 0 <= nc <= 7 and 1 <= nr <= 8:
-                        tsq = chr(ord('a') + nc) + str(nr)
-                        target = board.get(tsq)
-                        if target and (target.isupper() != white_to_move):
-                            moves.append(sq + tsq)
-            elif pt in ('B', 'R', 'Q'):
-                dirs = []
-                if pt in ('B', 'Q'): dirs.extend([(-1,-1),(-1,1),(1,-1),(1,1)])
-                if pt in ('R', 'Q'): dirs.extend([(-1,0),(1,0),(0,-1),(0,1)])
-                for dc, dr in dirs:
-                    nc, nr = c + dc, r + dr
-                    while 0 <= nc <= 7 and 1 <= nr <= 8:
-                        tsq = chr(ord('a') + nc) + str(nr)
-                        target = board.get(tsq)
-                        if target:
-                            if target.isupper() != white_to_move:
-                                moves.append(sq + tsq)
-                            break
-                        nc += dc
-                        nr += dr
-    return moves
+def order_moves(moves, board):
+    def score_move(m):
+        dst = m[2:4]
+        target = board.get(dst)
+        if target:
+            attacker = board.get(m[:2], 'P').upper()
+            return 1000 + PIECE_VAL.get(target.upper(), 0) - PIECE_VAL.get(attacker, 0) // 10
+        if len(m) == 5:
+            return 900
+        if dst in ('e4', 'd4', 'e5', 'd5'):
+            return 50
+        if dst in ('c4', 'f4', 'c5', 'f5'):
+            return 25
+        return 0
+    return sorted(moves, key=score_move, reverse=True)
 
-def quiesce(board, alpha, beta, white_to_move, depth=2):
-    stand_pat = evaluate_board(board, white_to_move)
-    if stand_pat >= beta:
-        return beta
-    if alpha < stand_pat:
-        alpha = stand_pat
+def alpha_beta(board, depth, alpha, beta, white_to_move):
     if depth <= 0:
-        return alpha
+        return evaluate_pos(board, white_to_move)
 
-    captures = generate_pseudo_legal_captures(board, white_to_move)
-    def mvv_lva(m):
-        victim = board.get(m[2:4], 'P').upper()
-        attacker = board.get(m[:2], 'P').upper()
-        return PIECE_VAL.get(victim, 0) - PIECE_VAL.get(attacker, 0) // 10
-    captures.sort(key=mvv_lva, reverse=True)
+    moves = get_pseudo_moves(board, white_to_move)
+    if not moves:
+        return 0 # Stalemate or mate
 
-    for m in captures:
+    moves = order_moves(moves, board)
+    for m in moves:
+        dst = m[2:4]
+        if board.get(dst, '').upper() == 'K':
+            return 15000 + depth # Winning capture of King
+
         nb = apply_move(board, m)
-        score = -quiesce(nb, -beta, -alpha, not white_to_move, depth - 1)
-        if score >= beta:
+        val = -alpha_beta(nb, depth - 1, -beta, -alpha, not white_to_move)
+        if val >= beta:
             return beta
-        if score > alpha:
-            alpha = score
+        if val > alpha:
+            alpha = val
     return alpha
 
 def choose_move(fen, legal_moves):
@@ -231,33 +254,23 @@ def choose_move(fen, legal_moves):
         return legal_moves[0]
 
     board, white_to_move = parse_fen(fen)
-
-    def move_priority(m):
-        dst = m[2:4]
-        target = board.get(dst)
-        src_piece = board.get(m[:2], 'P').upper()
-        if target:
-            # MVV-LVA
-            return 1000 + PIECE_VAL.get(target.upper(), 0) - PIECE_VAL.get(src_piece, 0)
-        # Center control bonus
-        if dst in ('e4', 'd4', 'e5', 'd5'):
-            return 50
-        if dst in ('c4', 'f4', 'c5', 'f5'):
-            return 20
-        return 0
-
-    sorted_moves = sorted(legal_moves, key=move_priority, reverse=True)
+    sorted_moves = order_moves(legal_moves, board)
 
     best_move = sorted_moves[0]
     best_score = -999999
     alpha = -999999
     beta = 999999
 
+    # Search depth 2 (effective 3-ply outlook)
+    SEARCH_DEPTH = 2
+
     for m in sorted_moves:
+        dst = m[2:4]
+        if board.get(dst, '').upper() == 'K':
+            return m
+
         nb = apply_move(board, m)
-        # Quiescence / 1-ply search on replies
-        # Evaluate reply moves
-        score = -quiesce(nb, -beta, -alpha, not white_to_move, depth=2)
+        score = -alpha_beta(nb, SEARCH_DEPTH, -beta, -alpha, not white_to_move)
         if score > best_score:
             best_score = score
             best_move = m
