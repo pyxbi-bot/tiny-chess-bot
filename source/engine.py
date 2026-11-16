@@ -226,37 +226,63 @@ def order_moves(moves, board):
         return 0
     return sorted(moves, key=score_move, reverse=True)
 
+def is_in_check(board, white_to_move):
+    target_k = 'K' if white_to_move else 'k'
+    ksq = None
+    for sq, p in board.items():
+        if p == target_k:
+            ksq = sq
+            break
+    if not ksq:
+        return True
+    for m in get_pseudo_moves(board, not white_to_move):
+        if m[2:4] == ksq:
+            return True
+    return False
+
 def quiesce(board, alpha, beta, white_to_move, qdepth=0):
-    stand_pat = evaluate_pos(board, white_to_move)
-    if stand_pat >= beta:
-        return beta
-    if alpha < stand_pat:
-        alpha = stand_pat
+    in_check = is_in_check(board, white_to_move)
+    if not in_check:
+        stand_pat = evaluate_pos(board, white_to_move)
+        if stand_pat >= beta:
+            return beta
+        if alpha < stand_pat:
+            alpha = stand_pat
+    else:
+        stand_pat = -20000
+
     if qdepth >= 4:
         return alpha
 
     captures = []
-    for m in get_pseudo_moves(board, white_to_move):
+    moves = get_pseudo_moves(board, white_to_move)
+    for m in moves:
         dst = m[2:4]
         target = board.get(dst)
-        if target:
-            if target.upper() == 'K':
+        if in_check or target or len(m) == 5:
+            if target and target.upper() == 'K':
                 return 20000
-            captures.append(m)
-        elif len(m) == 5:
             captures.append(m)
 
     if not captures:
-        return stand_pat
+        return -20000 if in_check else stand_pat
 
     captures = order_moves(captures, board)
+    legal_moves = 0
     for m in captures:
         nb = apply_move(board, m)
+        if is_in_check(nb, white_to_move):
+            continue
+        legal_moves += 1
         score = -quiesce(nb, -beta, -alpha, not white_to_move, qdepth + 1)
         if score >= beta:
             return beta
         if score > alpha:
             alpha = score
+
+    if in_check and legal_moves == 0:
+        return -20000
+
     return alpha
 
 def alpha_beta(board, depth, alpha, beta, white_to_move):
@@ -296,37 +322,24 @@ def choose_move(fen, legal_moves):
     sorted_moves = order_moves(legal_moves, board)
 
     best_move = sorted_moves[0]
-    t0 = time.time()
+    best_score = -999999
+    alpha = -999999
+    beta = 999999
 
-    # Iterative deepening: Depth 2 then Depth 3 with 4.5s timeout
-    for depth in (2, 3):
-        curr_best = best_move
-        curr_best_score = -999999
-        alpha = -999999
-        beta = 999999
-        aborted = False
+    SEARCH_DEPTH = 2
 
-        for m in sorted_moves:
-            if time.time() - t0 > 4.5:
-                aborted = True
-                break
+    for m in sorted_moves:
+        dst = m[2:4]
+        if board.get(dst, '').upper() == 'K':
+            return m
 
-            dst = m[2:4]
-            if board.get(dst, '').upper() == 'K':
-                return m
-
-            nb = apply_move(board, m)
-            score = -alpha_beta(nb, depth, -beta, -alpha, not white_to_move)
-            if score > curr_best_score:
-                curr_best_score = score
-                curr_best = m
-            if score > alpha:
-                alpha = score
-
-        if not aborted:
-            best_move = curr_best
-        else:
-            break
+        nb = apply_move(board, m)
+        score = -alpha_beta(nb, SEARCH_DEPTH, -beta, -alpha, not white_to_move)
+        if score > best_score:
+            best_score = score
+            best_move = m
+        if score > alpha:
+            alpha = score
 
     return best_move
 
