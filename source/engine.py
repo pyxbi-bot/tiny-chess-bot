@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 
@@ -295,25 +296,37 @@ def choose_move(fen, legal_moves):
     sorted_moves = order_moves(legal_moves, board)
 
     best_move = sorted_moves[0]
-    best_score = -999999
-    alpha = -999999
-    beta = 999999
+    t0 = time.time()
 
-    # Search depth 3
-    SEARCH_DEPTH = 3
+    # Iterative deepening: Depth 2 then Depth 3 with 4.5s timeout
+    for depth in (2, 3):
+        curr_best = best_move
+        curr_best_score = -999999
+        alpha = -999999
+        beta = 999999
+        aborted = False
 
-    for m in sorted_moves:
-        dst = m[2:4]
-        if board.get(dst, '').upper() == 'K':
-            return m
+        for m in sorted_moves:
+            if time.time() - t0 > 4.5:
+                aborted = True
+                break
 
-        nb = apply_move(board, m)
-        score = -alpha_beta(nb, SEARCH_DEPTH, -beta, -alpha, not white_to_move)
-        if score > best_score:
-            best_score = score
-            best_move = m
-        if score > alpha:
-            alpha = score
+            dst = m[2:4]
+            if board.get(dst, '').upper() == 'K':
+                return m
+
+            nb = apply_move(board, m)
+            score = -alpha_beta(nb, depth, -beta, -alpha, not white_to_move)
+            if score > curr_best_score:
+                curr_best_score = score
+                curr_best = m
+            if score > alpha:
+                alpha = score
+
+        if not aborted:
+            best_move = curr_best
+        else:
+            break
 
     return best_move
 
